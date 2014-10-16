@@ -1,94 +1,185 @@
 (ns grimoire.web.routes
-  (:require [compojure.core :refer [defroutes context GET]]
+  (:require [compojure.core :refer [defroutes context GET let-routes]]
             [compojure.route :as route]
-            [grimoire.web.util :as util]
-            [grimoire.web.views :as views]
+            [grimoire.web
+             [util :as util]
+             [views :as views]
+             [api   :as api]]
             [ring.util.response :as response]
             [taoensso.timbre :as timbre :refer [info warn]]))
 
+
+(defroutes store
+    (context ["/store"] []
+    (GET "/" {uri :uri}
+      (info (pr-str {:uri uri :type :text}))
+      (views/api-page))
+
+    (context ["/:groupid"] [groupid]
+      (GET "/" {uri :uri}
+        (info (pr-str {:uri uri :type :text}))
+        (views/groupid-page groupid))
+
+      (context ["/:artifactid"] [artifactid]
+        (GET "/" {uri :uri}
+          (info (pr-str {:uri uri :type :text}))
+          (views/artifactid-page groupid artifactid))
+
+        (context ["/:version", :version #"[0-9]+.[0-9]+.[0-9]+"] [version]
+          (GET "/" {uri :uri}
+            (info (pr-str {:uri uri :type :text}))
+            (views/version-page groupid artifactid version))
+
+          (context "/:namespace" [namespace]
+            (GET "/" {uri :uri}
+              (info (pr-str {:uri uri :type :text}))
+              (views/namespace-page-memo groupid artifactid version
+                                         namespace))
+
+            (context "/:symbol" [symbol]
+              (GET "/" {header-type :content-type
+                        {param-type :type} :params
+                        :as req
+                        uri :uri}
+                (let [type    (or header-type param-type :html)
+                      symbol' (util/unmunge symbol)]
+                  (cond
+                   ;; FIXME this is a bit of a hack to handle catch/finally
+                   (#{"catch" "finally"} symbol)
+                   ,,(response/redirect
+                      (format "/%s/%s/%s/%s/%s/"
+                              groupid artifactid version
+                              namespace"try"))
+
+                   ;; handle the case of redirecting due to munging
+                   (not (= symbol symbol'))
+                   ,,(response/redirect
+                      (format "/%s/%s/%s/%s/%s/"
+                              groupid artifactid version
+                              namespace symbol'))
+
+                   :else
+                   ,,(let [res (views/symbol-page groupid artifactid version
+                                                  namespace symbol type)]
+                       (info (pr-str {:uri uri :type type}))
+                       res))))
+
+              (route/not-found
+               (fn [{uri :uri}]
+                 (warn (pr-str {:uri uri}))
+                 (views/error-unknown-symbol groupid artifactid version
+                                             namespace symbol))))
+
+            (route/not-found
+             (fn [{uri :uri}]
+               (warn (pr-str {:uri uri}))
+               (views/error-unknown-namespace groupid artifactid version
+                                              namespace))))
+
+          (route/not-found
+           (fn [{uri :uri}]
+             (warn (pr-str {:uri uri}))
+             (views/error-unknown-version groupid artifactid version))))
+
+        (route/not-found
+         (fn [{uri :uri}]
+           (warn (pr-str {:uri uri}))
+           (views/error-unknown-artifact groupid artifactid))))
+
+      (route/not-found
+       (fn [{uri :uri}]
+         (warn (pr-str {:uri uri}))
+         (views/error-unknown-group groupid))))))
+
+(defroutes api-v0
+  (context ["/api/v0"] []
+    (GET "/" {{op :op} :params}
+      ;; op ∈ #{"groups"}
+      )
+
+    (context ["/:group"] [group]
+      (GET "/" {{op :op} :params}
+        ;; op ∈ #{"artifacts" "notes"}
+        )
+
+      (context ["/:artifact"] [artifact]
+        (GET "/" {{op :op} :params}
+          ;; op ∈ #{"versions" "notes" "url"}
+          )
+
+        (context ["/:version"] [version]
+          (GET "/" {{op :op} :params}
+            ;; op ∈ #{"namespaces" "notes"}
+            )
+
+          (context ["/:namespace"] [namespace]
+            (GET "/" {{op :op} :params}
+                ;; op ∈ #{"notes"
+                ;;        "docs"
+                ;;        "symbols"
+                ;;        "vars"
+                ;;        "fns"
+                ;;        "types"
+                ;;        "added"}
+              )
+
+            (context ["/:symbol"] [symbol]
+              (GET "/" {{op :op} :params}
+                ;; op ∈ #{"notes"
+                ;;        "type"
+                ;;        "added"
+                ;;        "doc"
+                ;;        "file"
+                ;;        "line"
+                ;;        "column"}
+                ))))))))
+
+
+(defroutes articles
+  (context ["/articles"] []
+    (GET "/:id" {{id :id} :params uri :uri}
+      (when-let [res (views/markdown-page (str "articles/" id))]
+        (info (pr-str {:uri uri :type :html}))
+        res))
+
+    (GET "/" {uri :uri}
+      (info (pr-str {:uri uri :type :html}))
+      (views/articles-list))
+
+      (route/not-found
+       (fn [{uri :uri}]
+         (warn (pr-str {:uri uri}))
+         (views/error-404)))))
+
+
 (defroutes app
   (GET "/" {uri :uri}
-       (info (pr-str {:uri uri :type :html}))
-       (views/home-page))
-
-  (GET "/about" {uri :uri}
-       (info (pr-str {:uri uri :type :html}))
-       (views/markdown-page "about"))
-
-  (GET "/contributing" {uri :uri}
-       (info (pr-str {:uri uri :type :html}))
-       (views/markdown-page "contributing"))
-
-  (GET "/api" {uri :uri}
-       (info (pr-str {:uri uri :type :html}))
-       (views/markdown-page "API"))
+    (info (pr-str {:uri uri :type :html}))
+    (views/home-page))
 
   (GET "/favicon.ico" []
-       (response/redirect "/public/favicon.ico"))
+    (response/redirect "/public/favicon.ico"))
 
   (GET "/robots.txt" []
-       (response/redirect "/public/robots.txt"))
+    (response/redirect "/public/robots.txt"))
 
   (route/resources "/public")
 
-  (context "/:version" [version]
-           (GET "/" {uri :uri}
-                (when (#{"1.4.0" "1.5.0" "1.6.0"} version)
-                  (views/version-page version)))
+  ;; The main browsing interface
+  store
 
-           (context "/:namespace" [namespace]
-                    (GET "/" {uri :uri}
-                         (views/namespace-page-memo version namespace))
+  ;; The article store
+  articles
 
-                    (context "/:symbol" [symbol]
-                             (GET "/" {header-type :content-type
-                                       {param-type :type} :params
-                                       :as req
-                                       uri :uri}
-                                  (let [type (or header-type param-type :html)]
-                                    (if (#{"catch" "finally"} symbol)
-                                      (response/redirect (str "/" version "/clojure.core/try/"))
-                                      (if-let [res (views/symbol-page version namespace symbol type)]
-                                        (do (info (pr-str {:uri uri :type type})) res)
-                                        (response/redirect (str "/" version "/" namespace "/" (util/unmunge symbol)))))))
+  ;; The v0 API
+  api-v0
 
-                             (GET "/docstring" {uri :uri}
-                                  (let [f  (util/resource-file version namespace symbol "docstring.md")]
-                                    (when (and f (.isFile f))
-                                      (info (pr-str {:uri uri :type :text}))
-                                      (slurp f))))
-
-                             (GET "/extended-docstring" {uri :uri}
-                                  (let [f (util/resource-file version namespace symbol "extended-docstring.md")]
-                                    (when (and f (.isFile f))
-                                      (info (pr-str {:uri uri :type :text}))
-                                      (slurp f))))
-
-                             (GET "/related" {uri :uri}
-                                  (let [f (util/resource-file version namespace symbol "related.txt")]
-                                    (when (and f (.isFile f))
-                                      (info (pr-str {:uri uri :type :text}))
-                                      (slurp f))))
-
-                             (GET "/examples" {uri :uri}
-                                  (when-let [examples (views/all-examples version namespace symbol :text)]
-                                    (info (pr-str {:uri uri :type :text}))
-                                    examples))
-
-                             (route/not-found
-                              (fn [{uri :uri}]
-                                (warn (pr-str {:uri uri}))
-                                (views/error-unknown-symbol version namespace symbol))))
-
-                    (route/not-found
-                     (fn [{uri :uri}]
-                       (warn (pr-str {:uri uri}))
-                       (views/error-unknown-namespace version namespace))))
-
-           (route/not-found
-            (fn [{uri :uri}]
-              (warn (pr-str {:uri uri}))
-              (views/error-unknown-version version))))
+  ;; Redirect legacy paths into the store
+  (context ["/:version", :version #"[0-9]+.[0-9]+.[0-9]+"] [version]
+    (fn [request]
+      (warn "Redirecting!")
+      (response/redirect (str "/store/org.clojure/clojure"
+                              (:uri request)))))
 
   (route/not-found
    (fn [{uri :uri}]

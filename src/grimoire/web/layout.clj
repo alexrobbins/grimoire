@@ -19,7 +19,8 @@
    (page/include-css
     (str baseurl "public/css/poole.css")
     (str baseurl "public/css/syntax.css")
-    (str baseurl "public/css/lanyon.css"))
+    (str baseurl "public/css/lanyon.css")
+    (str baseurl "public/css/headings.css"))
    [:link {:href "http://fonts.googleapis.com/css?family=PT+Serif:400,400italic,700|PT+Sans:400"
            :rel "stylesheet"}]
    [:link {:href (str baseurl "public/apple-touch-icon-precomposed.png") :sizes "144x144" :rel "apple-touch-icon-precomposed"}]
@@ -39,12 +40,14 @@
     [:div.sidebar-item [:p description]]
     [:nav.sidebar-nav
      [:a.sidebar-nav-item {:href "/"} "Home"]
-     [:a.sidebar-nav-item {:href "/1.6.0/"} "Clojure 1.6"]
-     [:a.sidebar-nav-item {:href "/1.5.0/"} "Clojure 1.5"]
-     [:a.sidebar-nav-item {:href "/1.4.0/"} "Clojure 1.4"]
-     [:a.sidebar-nav-item {:href "/about"} "About"]
-     [:a.sidebar-nav-item {:href "/api"} "API"]
-     [:a.sidebar-nav-item {:href "/contributing"} "Contributing"]
+     [:a.sidebar-nav-item {:href "/store/"} "Artifact store"]
+     [:a.sidebar-nav-item {:href "/store/org.clojure/clojure/1.6.0/"} "Clojure 1.6"]
+     [:a.sidebar-nav-item {:href "/store/org.clojure/clojure/1.5.0/"} "Clojure 1.5"]
+     [:a.sidebar-nav-item {:href "/store/org.clojure/clojure/1.4.0/"} "Clojure 1.4"]
+     [:a.sidebar-nav-item {:href "/articles"} "Article store"]
+     [:a.sidebar-nav-item {:href "/articles/about"} "About"]
+     [:a.sidebar-nav-item {:href "/articles/api"} "API"]
+     [:a.sidebar-nav-item {:href "/articles/contributing"} "Contributing"]
      [:br] "More" [:br]
      (let [{:keys [gittip me]} author]
        (list
