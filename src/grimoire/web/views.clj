@@ -157,7 +157,7 @@
              [:a (apply link-to' params) namespace])))
      
   ([groupid artifactid version namespace symbol]
-     (let [sym'   (gutil/my-munge symbol)
+     (let [sym'   (util/my-munge symbol)
            params [groupid artifactid version namespace sym']]
        (list (apply header (butlast params)) "/"
              [:a (apply link-to' params) symbol]))))
@@ -393,7 +393,7 @@
 			      (let [[ns sym] (string/split r #"/")]
 				[:li [:a {:href (str (:baseurl site-config)
 						     "/" version "/" ns "/"
-						     (gutil/my-munge sym) "/")}
+						     (util/my-munge sym) "/")}
 				      r]]))])))
 
 	     (when-let [source (util/clojure-file source-file)]
